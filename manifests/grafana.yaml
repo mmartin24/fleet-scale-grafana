@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: fleet-results
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # hostPath volume can't be attached from two pods at once
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.3.0
+          env:
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: "Admin"
+            - name: GF_AUTH_DISABLE_LOGIN_FORM
+              value: "true"
+            - name: GF_INSTALL_PLUGINS
+              value: "grafana-clickhouse-datasource"
+          ports:
+            - containerPort: 3000
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/grafana
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboards-provisioning
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+      volumes:
+        - name: data
+          # Backed by a host dir (see grafana-k3d-up.sh), same reasoning as
+          # ClickHouse's volume: GF_INSTALL_PLUGINS re-fetches the
+          # ClickHouse plugin from the internet on every cold start
+          # otherwise, which fails if the k3d node's network can't reach
+          # grafana.com at that moment. Persisting /var/lib/grafana means
+          # the plugin is only ever installed once. Dashboards/datasources
+          # still always come from the ConfigMaps below (i.e. from files in
+          # the repo), so this isn't a source of drift.
+          hostPath:
+            path: /data/grafana
+            type: DirectoryOrCreate
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboards-provisioning
+          configMap:
+            name: grafana-dashboards-provisioning
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: fleet-results
+spec:
+  type: NodePort
+  selector:
+    app: grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      nodePort: 30300

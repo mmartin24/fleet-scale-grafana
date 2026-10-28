@@ -1,0 +1,1279 @@
+{
+  "title": "Fleet Scale Results",
+  "uid": "fleet-scale-results",
+  "tags": [
+    "fleet"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 3,
+  "refresh": "1m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "env",
+        "label": "Env",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "query": "SELECT DISTINCT labels['env'] FROM fleet_scale_results WHERE metric = 'run' ORDER BY 1",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "clusters",
+        "label": "Clusters",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "query": "SELECT DISTINCT labels['clusters'] AS c FROM fleet_scale_results WHERE metric = 'run' ORDER BY toUInt32OrZero(c)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "chart",
+        "label": "Fleet chart",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "query": "SELECT DISTINCT labels['fleet_version'] AS v FROM fleet_scale_results WHERE metric = 'run' ORDER BY (arrayMap(n -> toUInt32OrZero(n), splitByChar('.', splitByChar('-', v)[1])), position(v, '-') = 0, extract(v, '-([a-z]+)'), toUInt32OrZero(extract(v, '-[a-z]+[.]?([0-9]+)'))) DESC",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "source",
+        "label": "Source",
+        "type": "custom",
+        "query": "published : 1,not published : 0",
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": []
+      },
+      {
+        "name": "va",
+        "label": "Compare A",
+        "description": "Defaults to the second highest Fleet chart version",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "query": "SELECT v FROM (SELECT v, row_number() OVER (ORDER BY (arrayMap(n -> toUInt32OrZero(n), splitByChar('.', splitByChar('-', v)[1])), position(v, '-') = 0, extract(v, '-([a-z]+)'), toUInt32OrZero(extract(v, '-[a-z]+[.]?([0-9]+)'))) DESC) AS r FROM (SELECT DISTINCT labels['fleet_version'] AS v FROM fleet_scale_results WHERE metric = 'run')) ORDER BY r = 2 DESC, r",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "vb",
+        "label": "with B",
+        "description": "Defaults to the highest Fleet chart version",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "query": "SELECT DISTINCT labels['fleet_version'] AS v FROM fleet_scale_results WHERE metric = 'run' ORDER BY (arrayMap(n -> toUInt32OrZero(n), splitByChar('.', splitByChar('-', v)[1])), position(v, '-') = 0, extract(v, '-([a-z]+)'), toUInt32OrZero(extract(v, '-[a-z]+[.]?([0-9]+)'))) DESC",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "test",
+        "label": "Test (trend)",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "query": "SELECT DISTINCT labels['scenario'] FROM fleet_scale_results WHERE metric = 'run' ORDER BY 1",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "metric",
+        "label": "Measurement (trend)",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "query": "SELECT DISTINCT metric FROM fleet_scale_results WHERE metric NOT IN ('run', 'event') ORDER BY 1",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "run",
+        "label": "Run (timeline)",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "query": "SELECT run_label AS __value, concat(formatDateTime(ts, '%F %R'), ' · ', labels['scenario'], ' · ', labels['env'], ' ', labels['clusters'], ' clusters · Fleet ', labels['fleet_version'], ' · ', labels['status']) AS __text FROM fleet_scale_results FINAL WHERE metric = 'run' ORDER BY ts DESC",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 3,
+      "title": "Pass/fail history (newest Fleet chart first)",
+      "description": "One row per day (per env, cluster count and Fleet chart); a test run again the same day goes to an extra 'repeat' row, one column per test.",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "WITH g AS (SELECT concat('Fleet ', v, ' · ', formatDateTime(batch, '%F'), if(toSecond(batch) > 1, concat(' · repeat ', toString(toSecond(batch) - 1)), ''), ' · ', env, ' · ', clusters, ' clusters', if(pub = 1, ' · published', ' · not published')) AS Batch, Test AS Col, concat(argMax(st, ts), if(count() > 1, concat(' (', toString(countIf(st != 'PASSED')), ' of ', toString(count()), ' failed)'), '')) AS Cell, any(v) AS vv, max(batch) AS bb FROM (SELECT labels['scenario'] AS Test, metric AS m, unit AS u, labels['env'] AS env, labels['clusters'] AS clusters, labels['fleet_version'] AS v, published AS pub, labels['status'] AS st, ts, value, b.batch AS batch FROM fleet_scale_results AS r FINAL INNER JOIN (SELECT run_label, toDateTime(toDate(ts)) + toIntervalSecond(row_number() OVER (PARTITION BY labels['env'], labels['fleet_version'], labels['clusters'], toDate(ts), labels['scenario'] ORDER BY ts)) AS batch FROM fleet_scale_results FINAL WHERE metric = 'run') AS b USING run_label WHERE metric = 'run' AND labels['env'] IN (${env:singlequote}) AND published IN (${source:csv}) AND labels['clusters'] IN (${clusters:singlequote}) AND labels['fleet_version'] IN (${chart:singlequote}) AND $__timeFilter(ts)) GROUP BY Batch, Col) SELECT Batch, Col AS Test, Cell AS Status FROM (SELECT 0 AS hdr, Batch, Col, Cell, vv, bb FROM g UNION ALL SELECT DISTINCT 1, '~', Col, '', '', toDateTime(0) FROM g) ORDER BY hdr DESC, if(hdr = 1, Col, ''), (arrayMap(n -> toUInt32OrZero(n), splitByChar('.', splitByChar('-', vv)[1])), position(vv, '-') = 0, extract(vv, '-([a-z]+)'), toUInt32OrZero(extract(vv, '-[a-z]+[.]?([0-9]+)'))) DESC, bb DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "–",
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "color-background"
+            }
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "regex",
+              "options": {
+                "pattern": "^PASSED.*",
+                "result": {
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": "^FAILED.*",
+                "result": {
+                  "color": "red"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": "^ERROR.*",
+                "result": {
+                  "color": "orange"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Batch\\Test"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Batch"
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 540
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "Batch",
+            "columnField": "Test",
+            "valueField": "Status",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Batch\\Test",
+                "config": {
+                  "id": "regex",
+                  "options": {
+                    "value": "^~$"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Failed runs",
+      "description": "Click a test to see its timeline at the bottom.",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT ts AS Finished, labels['scenario'] AS Test, labels['status'] AS Status, labels['env'] AS Env, toUInt32OrNull(labels['clusters']) AS Clusters, labels['fleet_version'] AS `Fleet chart`, if(published = 1, 'published', 'not published') AS Source, labels['actual'] AS Reason, run_label FROM fleet_scale_results FINAL WHERE metric = 'run' AND labels['status'] != 'PASSED' AND labels['env'] IN (${env:singlequote}) AND published IN (${source:csv}) AND labels['clusters'] IN (${clusters:singlequote}) AND labels['fleet_version'] IN (${chart:singlequote}) AND $__timeFilter(ts) ORDER BY (arrayMap(n -> toUInt32OrZero(n), splitByChar('.', splitByChar('-', labels['fleet_version'])[1])), position(labels['fleet_version'], '-') = 0, extract(labels['fleet_version'], '-([a-z]+)'), toUInt32OrZero(extract(labels['fleet_version'], '-[a-z]+[.]?([0-9]+)'))) DESC, ts DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Finished"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Env"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Clusters"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Source"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Fleet chart"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "FAILED": {
+                        "color": "red"
+                      },
+                      "ERROR": {
+                        "color": "orange"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Test"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 260
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Show timeline",
+                    "url": "/d/fleet-scale-results?${__url_time_range}&var-run=${__data.fields.run_label}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "run_label"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "title": "Test duration per batch (newest Fleet chart first)",
+      "description": "Average duration of the passed runs of each test in the batch; FAILED if none passed. Colour: compared with the average of the same test in the same setup (env + cluster count) over the shown batches. Green = at or below average (or less than 10% above), yellow = 10–24% slower/higher, orange = 25–49%, red = 50% or more.",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "WITH g AS (SELECT Batch, Col, if(isNull(x), 'FAILED', concat(multiIf(x < 60, concat(toString(round(x)), ' s'), concat(toString(round(x / 60, 1)), ' min')), concat(' (', if(x >= a, '+', ''), toString(toInt64(round(100 * (x - a) / a))), '%)'))) AS Cell, vv, bb FROM (SELECT Batch, Col, x, vv, bb, avg(x) OVER (PARTITION BY Col, env, clusters) AS a FROM (SELECT concat('Fleet ', v, ' · ', formatDateTime(batch, '%F'), if(toSecond(batch) > 1, concat(' · repeat ', toString(toSecond(batch) - 1)), ''), ' · ', env, ' · ', clusters, ' clusters', if(pub = 1, ' · published', ' · not published')) AS Batch, Test AS Col, env, clusters, any(v) AS vv, max(batch) AS bb, avgOrNullIf(value, st = 'PASSED') AS x FROM (SELECT labels['scenario'] AS Test, metric AS m, unit AS u, labels['env'] AS env, labels['clusters'] AS clusters, labels['fleet_version'] AS v, published AS pub, labels['status'] AS st, ts, value, b.batch AS batch FROM fleet_scale_results AS r FINAL INNER JOIN (SELECT run_label, toDateTime(toDate(ts)) + toIntervalSecond(row_number() OVER (PARTITION BY labels['env'], labels['fleet_version'], labels['clusters'], toDate(ts), labels['scenario'] ORDER BY ts)) AS batch FROM fleet_scale_results FINAL WHERE metric = 'run') AS b USING run_label WHERE metric = 'run' AND labels['env'] IN (${env:singlequote}) AND published IN (${source:csv}) AND labels['clusters'] IN (${clusters:singlequote}) AND labels['fleet_version'] IN (${chart:singlequote}) AND $__timeFilter(ts)) GROUP BY Batch, Col, env, clusters))) SELECT Batch, Col AS Test, Cell AS Cell FROM (SELECT 0 AS hdr, Batch, Col, Cell, vv, bb FROM g UNION ALL SELECT DISTINCT 1, '~', Col, '', '', toDateTime(0) FROM g) ORDER BY hdr DESC, if(hdr = 1, Col, ''), (arrayMap(n -> toUInt32OrZero(n), splitByChar('.', splitByChar('-', vv)[1])), position(vv, '-') = 0, extract(vv, '-([a-z]+)'), toUInt32OrZero(extract(vv, '-[a-z]+[.]?([0-9]+)'))) DESC, bb DESC"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "Batch",
+            "columnField": "Test",
+            "valueField": "Cell",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Batch\\Test",
+                "config": {
+                  "id": "regex",
+                  "options": {
+                    "value": "^~$"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "–",
+          "custom": {
+            "align": "center",
+            "minWidth": 110,
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "basic"
+            }
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "FAILED": {
+                  "color": "red"
+                },
+                "0": {
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*\\(-.*",
+                "result": {
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*\\(\\+[0-9]%\\)",
+                "result": {
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*\\(\\+(1[0-9]|2[0-4])%\\)",
+                "result": {
+                  "color": "yellow"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*\\(\\+(2[5-9]|[34][0-9])%\\)",
+                "result": {
+                  "color": "orange"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*\\(\\+([5-9][0-9]|[0-9]{3,})%\\)",
+                "result": {
+                  "color": "red"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Batch\\Test"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Batch"
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 540
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      }
+    },
+    {
+      "id": 9,
+      "title": "Measurements per batch (newest Fleet chart first)",
+      "description": "Columns: test number + measurement (BDs = bundledeployments). Per batch: average for durations, maximum for counts and sizes. Old runs: read from the text lines. Counts that are 0 everywhere just show 0. Colour: compared with the average of the same test in the same setup (env + cluster count) over the shown batches. Green = at or below average (or less than 10% above), yellow = 10–24% slower/higher, orange = 25–49%, red = 50% or more.",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "WITH g AS (SELECT Batch, Col, if(a = 0, multiIf(u = 's', multiIf(x < 60, concat(toString(round(x)), ' s'), concat(toString(round(x / 60, 1)), ' min')), u = 'bytes', concat(toString(round(x / 1048576)), ' MiB'), toString(round(x, 1))), concat(multiIf(u = 's', multiIf(x < 60, concat(toString(round(x)), ' s'), concat(toString(round(x / 60, 1)), ' min')), u = 'bytes', concat(toString(round(x / 1048576)), ' MiB'), toString(round(x, 1))), concat(' (', if(x >= a, '+', ''), toString(toInt64(round(100 * (x - a) / a))), '%)'))) AS Cell, vv, bb FROM (SELECT Batch, Col, mu AS u, x, vv, bb, avg(x) OVER (PARTITION BY Col, env, clusters) AS a FROM (SELECT concat('Fleet ', v, ' · ', formatDateTime(batch, '%F'), if(toSecond(batch) > 1, concat(' · repeat ', toString(toSecond(batch) - 1)), ''), ' · ', env, ' · ', clusters, ' clusters', if(pub = 1, ' · published', ' · not published')) AS Batch, concat(substring(Test, 1, 2), ' ', replaceAll(replaceAll(replaceRegexpOne(replaceRegexpOne(m, '_(seconds|bytes)$', ''), '^update_latency_phase[0-9]-([a-z]+)$', '\\\\1_latency'), 'bundledeployments', 'BDs'), '_', ' ')) AS Col, env, clusters, any(u) AS mu, any(v) AS vv, max(batch) AS bb, if(any(u) = 's', avg(value), max(value)) AS x FROM (SELECT labels['scenario'] AS Test, metric AS m, unit AS u, labels['env'] AS env, labels['clusters'] AS clusters, labels['fleet_version'] AS v, published AS pub, labels['status'] AS st, ts, value, b.batch AS batch FROM fleet_scale_results AS r FINAL INNER JOIN (SELECT run_label, toDateTime(toDate(ts)) + toIntervalSecond(row_number() OVER (PARTITION BY labels['env'], labels['fleet_version'], labels['clusters'], toDate(ts), labels['scenario'] ORDER BY ts)) AS batch FROM fleet_scale_results FINAL WHERE metric = 'run') AS b USING run_label WHERE metric NOT IN ('run', 'event') AND labels['env'] IN (${env:singlequote}) AND published IN (${source:csv}) AND labels['clusters'] IN (${clusters:singlequote}) AND labels['fleet_version'] IN (${chart:singlequote}) AND $__timeFilter(ts)) GROUP BY Batch, Col, env, clusters))) SELECT Batch, Col AS Measurement, Cell AS Cell FROM (SELECT 0 AS hdr, Batch, Col, Cell, vv, bb FROM g UNION ALL SELECT DISTINCT 1, '~', Col, '', '', toDateTime(0) FROM g) ORDER BY hdr DESC, if(hdr = 1, Col, ''), (arrayMap(n -> toUInt32OrZero(n), splitByChar('.', splitByChar('-', vv)[1])), position(vv, '-') = 0, extract(vv, '-([a-z]+)'), toUInt32OrZero(extract(vv, '-[a-z]+[.]?([0-9]+)'))) DESC, bb DESC"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "Batch",
+            "columnField": "Measurement",
+            "valueField": "Cell",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Batch\\Measurement",
+                "config": {
+                  "id": "regex",
+                  "options": {
+                    "value": "^~$"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "–",
+          "custom": {
+            "align": "center",
+            "minWidth": 230,
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "basic"
+            }
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "FAILED": {
+                  "color": "red"
+                },
+                "0": {
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*\\(-.*",
+                "result": {
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*\\(\\+[0-9]%\\)",
+                "result": {
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*\\(\\+(1[0-9]|2[0-4])%\\)",
+                "result": {
+                  "color": "yellow"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*\\(\\+(2[5-9]|[34][0-9])%\\)",
+                "result": {
+                  "color": "orange"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*\\(\\+([5-9][0-9]|[0-9]{3,})%\\)",
+                "result": {
+                  "color": "red"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Batch\\Measurement"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Batch"
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 540
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      }
+    },
+    {
+      "id": 14,
+      "title": "Duration of ${test} per batch (by Fleet chart)",
+      "description": "x: batches sorted by Fleet chart version (Fleet chart · date · env clusters), y: average duration of the passed runs. No bar = no passed run. Pick the test at the top.",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT concat(v, ' · ', formatDateTime(b, '%m-%d'), if(toSecond(b) > 1, concat(' · repeat ', toString(toSecond(b) - 1)), ''), ' · ', env, ' ', clusters) AS Batch, x AS Duration FROM (SELECT env, clusters, v, max(batch) AS b, avgOrNullIf(value, st = 'PASSED') AS x FROM (SELECT labels['scenario'] AS Test, metric AS m, unit AS u, labels['env'] AS env, labels['clusters'] AS clusters, labels['fleet_version'] AS v, published AS pub, labels['status'] AS st, ts, value, b.batch AS batch FROM fleet_scale_results AS r FINAL INNER JOIN (SELECT run_label, toDateTime(toDate(ts)) + toIntervalSecond(row_number() OVER (PARTITION BY labels['env'], labels['fleet_version'], labels['clusters'], toDate(ts), labels['scenario'] ORDER BY ts)) AS batch FROM fleet_scale_results FINAL WHERE metric = 'run') AS b USING run_label WHERE metric = 'run' AND labels['scenario'] = '${test}' AND labels['env'] IN (${env:singlequote}) AND published IN (${source:csv}) AND labels['clusters'] IN (${clusters:singlequote}) AND labels['fleet_version'] IN (${chart:singlequote}) AND $__timeFilter(ts)) GROUP BY env, clusters, v, batch) ORDER BY (arrayMap(n -> toUInt32OrZero(n), splitByChar('.', splitByChar('-', v)[1])), position(v, '-') = 0, extract(v, '-([a-z]+)'), toUInt32OrZero(extract(v, '-[a-z]+[.]?([0-9]+)'))), b"
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "xField": "Batch",
+        "showValue": "auto",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 80,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      }
+    },
+    {
+      "id": 15,
+      "title": "${metric} per batch (by Fleet chart)",
+      "description": "x: batches sorted by Fleet chart version (Fleet chart · date · env clusters), y: average (durations) or maximum (counts, sizes) per batch. Pick the measurement at the top.",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT concat(v, ' · ', formatDateTime(b, '%m-%d'), if(toSecond(b) > 1, concat(' · repeat ', toString(toSecond(b) - 1)), ''), ' · ', env, ' ', clusters) AS Batch, x AS `${metric}` FROM (SELECT env, clusters, v, max(batch) AS b, if(any(u) = 's', avg(value), max(value)) AS x FROM (SELECT labels['scenario'] AS Test, metric AS m, unit AS u, labels['env'] AS env, labels['clusters'] AS clusters, labels['fleet_version'] AS v, published AS pub, labels['status'] AS st, ts, value, b.batch AS batch FROM fleet_scale_results AS r FINAL INNER JOIN (SELECT run_label, toDateTime(toDate(ts)) + toIntervalSecond(row_number() OVER (PARTITION BY labels['env'], labels['fleet_version'], labels['clusters'], toDate(ts), labels['scenario'] ORDER BY ts)) AS batch FROM fleet_scale_results FINAL WHERE metric = 'run') AS b USING run_label WHERE metric = '${metric}' AND labels['env'] IN (${env:singlequote}) AND published IN (${source:csv}) AND labels['clusters'] IN (${clusters:singlequote}) AND labels['fleet_version'] IN (${chart:singlequote}) AND $__timeFilter(ts)) GROUP BY env, clusters, v, batch) ORDER BY (arrayMap(n -> toUInt32OrZero(n), splitByChar('.', splitByChar('-', v)[1])), position(v, '-') = 0, extract(v, '-([a-z]+)'), toUInt32OrZero(extract(v, '-[a-z]+[.]?([0-9]+)'))), b"
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "xField": "Batch",
+        "showValue": "auto",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 80,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*_seconds"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*_bytes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      }
+    },
+    {
+      "id": 7,
+      "title": "Compare Fleet ${va} (A) with ${vb} (B)",
+      "description": "Pick A and B at the top. Durations are averages of passed runs; only compare rows with the same setup. Change: green = B faster by more than 10%, red = B slower by more than 10%.",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT Test, Setup, multiIf(countIf(v = '${va}') = 0, '', countIf(v = '${va}' AND st != 'PASSED') > 0, 'FAILED', 'PASSED') AS `A`, avgOrNullIf(value, v = '${va}' AND st = 'PASSED') AS `Duration A`, multiIf(countIf(v = '${vb}') = 0, '', countIf(v = '${vb}' AND st != 'PASSED') > 0, 'FAILED', 'PASSED') AS `B`, avgOrNullIf(value, v = '${vb}' AND st = 'PASSED') AS `Duration B`, round(100 * (`Duration B` - `Duration A`) / `Duration A`, 1) AS Change FROM (SELECT labels['scenario'] AS Test, concat(labels['env'], ' ', labels['clusters'], ' clusters') AS Setup, labels['fleet_version'] AS v, labels['status'] AS st, value FROM fleet_scale_results FINAL WHERE metric = 'run' AND labels['fleet_version'] IN ('${va}', '${vb}') AND labels['env'] IN (${env:singlequote}) AND published IN (${source:csv}) AND labels['clusters'] IN (${clusters:singlequote}) AND $__timeFilter(ts)) GROUP BY Test, Setup ORDER BY Test, Setup"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "–"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "Duration.*"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(A|B)$"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "PASSED": {
+                        "color": "green"
+                      },
+                      "FAILED": {
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Change"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "text",
+                      "value": -10
+                    },
+                    {
+                      "color": "red",
+                      "value": 10
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Test"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 230
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Setup"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 11,
+      "title": "All runs",
+      "description": "One line per test run. Click a test name to see its timeline at the bottom.",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 55
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT ts AS Finished, labels['scenario'] AS Test, labels['status'] AS Status, labels['env'] AS Env, toUInt32OrNull(labels['clusters']) AS Clusters, toUInt32OrNull(labels['bundles']) AS Bundles, labels['fleet_version'] AS `Fleet chart`, labels['image'] AS `Controller image`, if(published = 1, 'published', 'not published') AS Source, value AS Duration, labels['actual'] AS Result, run_label FROM fleet_scale_results FINAL WHERE metric = 'run' AND labels['env'] IN (${env:singlequote}) AND published IN (${source:csv}) AND labels['clusters'] IN (${clusters:singlequote}) AND labels['fleet_version'] IN (${chart:singlequote}) AND $__timeFilter(ts) ORDER BY (arrayMap(n -> toUInt32OrZero(n), splitByChar('.', splitByChar('-', labels['fleet_version'])[1])), position(labels['fleet_version'], '-') = 0, extract(labels['fleet_version'], '-([a-z]+)'), toUInt32OrZero(extract(labels['fleet_version'], '-[a-z]+[.]?([0-9]+)'))) DESC, ts DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "PASSED": {
+                        "color": "green"
+                      },
+                      "FAILED": {
+                        "color": "red"
+                      },
+                      "ERROR": {
+                        "color": "orange"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Test"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Show timeline",
+                    "url": "/d/fleet-scale-results?${__url_time_range}&var-run=${__data.fields.run_label}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "run_label"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "title": "Run timeline",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 65
+      },
+      "panels": []
+    },
+    {
+      "id": 12,
+      "title": "Timeline of the selected run (pick it in 'Run (timeline)' above, or click a test in a table)",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 66
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT ts AS Time, value AS `Since start`, labels['event'] AS Event FROM fleet_scale_results FINAL WHERE metric = 'event' AND run_label = '${run}' ORDER BY ts, `Since start`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Since start"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 190
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
